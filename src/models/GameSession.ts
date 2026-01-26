@@ -5,7 +5,7 @@ const SessionSchema = new mongoose.Schema({
     title: {type: String, required: true},
     accuracy: {type: Number, required: true},
     score: {type: Number, required: true},
-    timeTaken: {type: Number, required: true},//in millisecs
+    timeTaken: {type: Number, required: true},//in millisecs??
     completed: {type: Boolean, required: true},
     completedAt: { type: Date, default: Date.now }
 })

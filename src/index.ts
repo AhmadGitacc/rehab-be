@@ -18,13 +18,14 @@ app.use(compression())
 
 const server = http.createServer(app)
 
-server.listen(8989, ()=>{
+server.listen(8989, () => {
     console.log('Server is running on http://localhost:8989')
 })
 
+const dbURI = process.env.MONGODB_URL;
 mongoose.Promise = Promise;
-// mongoose.connect(process.env.MONGO_URL)
-mongoose.connect("mongodb://localhost:27017")
+mongoose.connect(dbURI)
+// mongoose.connect("mongodb://localhost:27017")
 mongoose.connection.on('error', (err: Error) => {
     console.log(err)
 })

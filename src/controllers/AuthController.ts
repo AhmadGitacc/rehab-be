@@ -1,5 +1,5 @@
 import express from 'express';
-import { createUser, getUserByEmail } from '../models/User';
+import { createUser, getUserByEmail, updateUserById } from '../models/User';
 import { authentication, random } from '../helpers';
 
 export const Register = async (req: express.Request, res: express.Response) => {
@@ -54,6 +54,8 @@ export const Login = async (req: express.Request, res: express.Response) => {
             return res.status(403).json({ message: 'Invalid password' });
         }
 
+        await updateUserById(user._id.toString(), { IsOnline: true });
+
         const salt = random()
         user.authentication.sessionToken = authentication(salt, user._id.toString())
 
@@ -69,11 +71,17 @@ export const Login = async (req: express.Request, res: express.Response) => {
 }
 
 export const Logout = async (req: express.Request, res: express.Response) => {
-    try{
+    try {
+        const { email } = req.body;
+
+        const user = await getUserByEmail(email);
+
         res.clearCookie("REHAB-AUTH", { domain: "localhost", path: "/" })
 
+        await updateUserById(user._id.toString(), { IsOnline: false });
+
         return res.status(200).json({ message: 'Logged out successfully' })
-    } catch(err){
+    } catch (err) {
         console.log(err)
         return res.sendStatus(400)
     }
