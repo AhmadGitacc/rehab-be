@@ -4,8 +4,11 @@
         "moduleResolution": "nodenext",
         "baseUrl": "src",
         "outDir": "dist",
+        "rootDir": "src",
         "sourceMap": true,
         "noImplicitAny": true,
     },
-"include": ["src/**/*"],
+    "include": [
+        "src/**/*"
+    ],
 }

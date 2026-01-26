@@ -1,10 +1,12 @@
 {
   "name": "rehab-backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "index.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon start"
+    "dev": "nodemon --exec ts-node src/index.ts",
+    "build": "tsc",
+    "vercel-build": "tsc",
+    "start": "node dist/index.ts"
   },
   "keywords": [],
   "author": "",
