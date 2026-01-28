@@ -2,29 +2,22 @@ import express from 'express';
 import { GameSessionModel } from '../models/GameSession';
 import mongoose from 'mongoose';
 
+const getStartDate = (timeframe: string) => {
+    const date = new Date();
+    switch (timeframe) {
+        case '7d': date.setDate(date.getDate() - 7); break;
+        case '30d': date.setDate(date.getDate() - 30); break;
+        case '90d': date.setDate(date.getDate() - 90); break;
+        default: return new Date(0);
+    }
+    return date;
+};
+
 export const getAnalytics = async (req: express.Request, res: express.Response) => {
     try {
         const { id } = req.params;
-        const { timeframe } = req.query;
-
-        let startDate = new Date(0);
-        const now = new Date();
-
-        switch (timeframe) {
-            case '7d':
-                startDate = new Date(now.setDate(now.getDate() - 7));
-                break;
-            case '30d':
-                startDate = new Date(now.setDate(now.getDate() - 30));
-                break;
-            case '90d':
-                startDate = new Date(now.setDate(now.getDate() - 90));
-                break;
-            case 'all':
-            default:
-                startDate = new Date(0);
-                break;
-        }
+        const { timeframe = '7d' } = req.query;
+        const startDate = getStartDate(timeframe as string);
 
         const stats = await GameSessionModel.aggregate([
             {
@@ -36,23 +29,21 @@ export const getAnalytics = async (req: express.Request, res: express.Response) 
             },
             {
                 $group: {
-                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$completedAt" } },
+                    _id: "$title",
                     avgAccuracy: { $avg: "$accuracy" },
-                    avgReactionTime: { $avg: "$timeTaken" },
+                    avgValue: { $avg: "$timeTaken" },
+                    latestValue: { $last: "$timeTaken" },
                     sessionCount: { $sum: 1 }
                 }
-            },
-            { $sort: { "_id": 1 } }
+            }
         ]);
 
-        return res.status(201).json(stats);
-
+        return res.status(200).json(stats);
     } catch (err) {
-        console.log(err)
-        return res.sendStatus(400)
+        console.error(err);
+        return res.sendStatus(400);
     }
 }
-
 
 export const getAllAnalytics = async (req: express.Request, res: express.Response) => {
     try {
