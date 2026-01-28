@@ -11,13 +11,13 @@ export const isAuthenticated = async (req: express.Request, res: express.Respons
         }
 
         if (!sessionToken) {
-            return res.sendStatus(403)
+            return res.status(403).json("No session token provided");
         }
 
         const existingUser = await getUserBySessionToken(sessionToken)
 
         if (!existingUser) {
-            return res.sendStatus(403)
+            return res.status(403).json("User not found");
         }
 
         merge(req, { identity: existingUser })
