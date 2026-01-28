@@ -74,15 +74,24 @@ export const Logout = async (req: express.Request, res: express.Response) => {
     try {
         const { email } = req.body;
 
+        if (!email) return res.status(400).json({ message: "Email is required" });
+
         const user = await getUserByEmail(email);
 
-        res.clearCookie("REHAB-AUTH", { domain: "localhost", path: "/" })
+        res.clearCookie("REHAB-AUTH", {
+            path: "/",
+            domain: process.env.NODE_ENV === 'development' ? "localhost" : ".vercel.app",
+            secure: true,
+            sameSite: 'none'
+        });
 
-        await updateUserById(user._id.toString(), { IsOnline: false });
+        if (user) {
+            await updateUserById(user._id.toString(), { IsOnline: false });
+        }
 
-        return res.status(200).json({ message: 'Logged out successfully' })
+        return res.status(200).json({ message: 'Logged out successfully' });
     } catch (err) {
-        console.log(err)
-        return res.sendStatus(400)
+        console.error("Logout Controller Error:", err);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
 }
