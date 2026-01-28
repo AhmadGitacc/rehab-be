@@ -26,6 +26,6 @@ export const saveSessionInfo = async (req: express.Request, res: express.Respons
 
     } catch (err) {
         console.log(err)
-        return res.sendStatus(400)
+        return res.status(400).json({ error: err.message });
     }
 }                                           
