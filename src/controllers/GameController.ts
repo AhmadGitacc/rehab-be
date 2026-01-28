@@ -4,7 +4,7 @@ import { saveSession } from "../models/GameSession";
 
 export const saveSessionInfo = async (req: express.Request, res: express.Response) => {
     try {
-        const { title, accuracy, score, timeTaken, completed } = req.body
+        const { title, difficulty, accuracy, score, timeTaken, completed } = req.body
 
         const currentUserId = get(req, 'identity._id') as string;
 
@@ -15,6 +15,7 @@ export const saveSessionInfo = async (req: express.Request, res: express.Respons
         const sessionInfo = await saveSession({
             userId: currentUserId,
             title,
+            difficulty,
             accuracy,
             score,
             timeTaken,
