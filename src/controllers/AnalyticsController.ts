@@ -29,18 +29,19 @@ export const getAnalytics = async (req: express.Request, res: express.Response) 
             },
             {
                 $group: {
-                    _id: "$title",
+                    _id: {
+                        date: { $dateToString: { format: "%m-%d", date: "$completedAt" } },
+                        title: "$title"
+                    },
                     avgAccuracy: { $avg: "$accuracy" },
-                    avgValue: { $avg: "$timeTaken" },
-                    latestValue: { $last: "$timeTaken" },
-                    sessionCount: { $sum: 1 }
+                    avgValue: { $avg: "$timeTaken" }
                 }
-            }
+            },
+            { $sort: { "_id.date": 1 } }
         ]);
 
         return res.status(200).json(stats);
     } catch (err) {
-        console.error(err);
         return res.sendStatus(400);
     }
 }
