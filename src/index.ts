@@ -8,9 +8,9 @@ import router from './router'
 const app = express()
 
 app.use(cors({
-    origin: ["http://localhost:5173", "https://your-frontend.vercel.app"],
+    origin: ["http://localhost:5173", "https://frontend.vercel.app"],
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
