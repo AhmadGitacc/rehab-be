@@ -34,7 +34,8 @@ export const getAnalytics = async (req: express.Request, res: express.Response) 
                         title: "$title"
                     },
                     avgAccuracy: { $avg: "$accuracy" },
-                    avgValue: { $avg: "$timeTaken" }
+                    avgValue: { $avg: "$timeTaken" },
+                    count: { $sum: 1 }
                 }
             },
             { $sort: { "_id.date": 1 } }
