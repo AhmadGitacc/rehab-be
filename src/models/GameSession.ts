@@ -8,6 +8,7 @@ const SessionSchema = new mongoose.Schema({
     score: {type: Number, required: true},
     timeTaken: {type: Number, required: true},//in millisecs??
     completed: {type: Boolean, required: true},
+    clientId: {type: String, required: false},
     completedAt: { type: Date, default: Date.now }
 })
 
