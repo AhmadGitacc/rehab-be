@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+const CATEGORIES = ['memory', 'coordination', 'reaction', 'auditory'] as const;
+
 const UserSchema = new mongoose.Schema({
     email : {type: String, required: true},
     username: {type: String, required: true},
@@ -9,6 +11,8 @@ const UserSchema = new mongoose.Schema({
         enum: ['patient', 'admin', 'doctor'], 
         default: 'patient' 
     },
+    assignedDoctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    assignedCategories: { type: [String], enum: CATEGORIES, default: [] },
     authentication: {
         password: {type: String, required: true, select: false},
         salt: {type: String, select: false},

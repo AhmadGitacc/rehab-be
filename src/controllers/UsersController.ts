@@ -1,6 +1,9 @@
 import express from 'express';
+import { get } from 'lodash';
 import { authentication, random } from '../helpers';
-import { deleteUserById, getUserById, getUsers } from '../models/User';
+import { deleteUserById, getUserById, getUsers, UserModel } from '../models/User';
+
+const CATEGORIES = ['memory', 'coordination', 'reaction', 'auditory'];
 
 export const getAllUsers = async (req: express.Request, res: express.Response) => {
     try {
@@ -65,6 +68,113 @@ export const deleteUser = async (req: express.Request, res: express.Response) =>
         return res.json(user)
 
     }catch(err){
+        console.log(err)
+        return res.sendStatus(400)
+    }
+}
+
+/**
+ * Returns all patients, optionally enriched with their assigned doctor and
+ * enabled cognitive training categories. Used by the admin assignment page
+ * and the doctor care-plan page.
+ */
+export const getPatientsForAssignment = async (req: express.Request, res: express.Response) => {
+    try {
+        const patients = await UserModel.find({ role: 'patient' })
+            .select('-authentication')
+            .populate('assignedDoctorId', '_id username email')
+            .sort({ username: 1 })
+
+        return res.status(200).json(patients);
+    } catch (err) {
+        console.log(err)
+        return res.sendStatus(400)
+    }
+}
+
+/**
+ * Assigns a doctor (or clears the assignment) for a single patient.
+ */
+export const assignDoctor = async (req: express.Request, res: express.Response) => {
+    try {
+        const { id } = req.params
+        const { doctorId } = req.body
+
+        if (doctorId === undefined || doctorId === null || doctorId === '') {
+            // Unassign
+            const cleared = await UserModel.findByIdAndUpdate(id, { $set: { assignedDoctorId: null } }, { new: true })
+            return res.status(200).json(cleared)
+        }
+
+        const user = await getUserById(id)
+        if (!user) {
+            return res.status(400).json("user doesn't exist")
+        }
+        if (user.role !== 'patient') {
+            return res.status(400).json("Only patients can be assigned a doctor")
+        }
+
+        const doctor = await UserModel.findById(doctorId)
+        if (!doctor || doctor.role !== 'doctor') {
+            return res.status(400).json("Invalid doctor")
+        }
+
+        user.assignedDoctorId = doctor._id
+        await user.save()
+        return res.status(200).json(user)
+
+    } catch (err) {
+        console.log(err)
+        return res.sendStatus(400)
+    }
+}
+
+/**
+ * Sets the enabled cognitive training categories for a patient.
+ */
+export const assignCategories = async (req: express.Request, res: express.Response) => {
+    try {
+        const { id } = req.params
+        const { categories } = req.body
+
+        if (!Array.isArray(categories)) {
+            return res.status(400).json("categories must be an array")
+        }
+
+        const user = await getUserById(id)
+        if (!user) {
+            return res.status(400).json("user doesn't exist")
+        }
+        if (user.role !== 'patient') {
+            return res.status(400).json("Only patients can have categories assigned")
+        }
+
+        const normalized = [...new Set(categories.filter((c) => CATEGORIES.includes(c)))];
+        user.assignedCategories = normalized
+        await user.save()
+        return res.status(200).json(user)
+
+    } catch (err) {
+        console.log(err)
+        return res.sendStatus(400)
+    }
+}
+
+/**
+ * Returns the enabled categories for the currently authenticated user so the
+ * patient dashboard can filter the activity catalog.
+ */
+export const getMyCategories = async (req: express.Request, res: express.Response) => {
+    try {
+        const identity = get(req, 'identity') as any;
+        if (!identity?._id) {
+            return res.status(403).json({ message: 'User not authenticated' });
+        }
+
+        const user = await UserModel.findById(identity._id)
+        return res.status(200).json({ assignedCategories: user?.assignedCategories || [] });
+
+    } catch (err) {
         console.log(err)
         return res.sendStatus(400)
     }

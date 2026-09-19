@@ -73,3 +73,19 @@ export const isAdmin = async (req: express.Request, res: express.Response, next:
         return res.sendStatus(400)
     }
 }
+
+export const isSuperAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    try {
+        const currentUser = get(req, 'identity.role') as string;
+
+        if (currentUser !== 'admin') {
+            return res.status(403).json({ message: 'Admin only' });
+        }
+
+        return next();
+
+    } catch (err) {
+        console.log(err)
+        return res.sendStatus(400)
+    }
+}
