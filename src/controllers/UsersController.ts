@@ -179,3 +179,52 @@ export const getMyCategories = async (req: express.Request, res: express.Respons
         return res.sendStatus(400)
     }
 }
+
+/**
+ * Sets the daily goal for a patient.
+ */
+export const setDailyGoal = async (req: express.Request, res: express.Response) => {
+    try {
+        const { id } = req.params;
+        const { goal } = req.body;
+
+        if (typeof goal !== 'number' || goal < 1 || goal > 50 || !Number.isInteger(goal)) {
+            return res.status(400).json("Goal must be an integer between 1 and 50");
+        }
+
+        const user = await getUserById(id);
+        if (!user) {
+            return res.status(400).json("user doesn't exist");
+        }
+        if (user.role !== 'patient') {
+            return res.status(400).json("Only patients can have a daily goal");
+        }
+
+        user.dailyGoal = goal;
+        await user.save();
+        return res.status(200).json(user);
+
+    } catch (err) {
+        console.log(err)
+        return res.sendStatus(400)
+    }
+}
+
+/**
+ * Returns the daily goal for the currently authenticated user.
+ */
+export const getMyGoal = async (req: express.Request, res: express.Response) => {
+    try {
+        const identity = get(req, 'identity') as any;
+        if (!identity?._id) {
+            return res.status(403).json({ message: 'User not authenticated' });
+        }
+
+        const user = await UserModel.findById(identity._id);
+        return res.status(200).json({ dailyGoal: user?.dailyGoal || 10 });
+
+    } catch (err) {
+        console.log(err)
+        return res.sendStatus(400)
+    }
+}

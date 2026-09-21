@@ -13,6 +13,7 @@ const UserSchema = new mongoose.Schema({
     },
     assignedDoctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     assignedCategories: { type: [String], enum: CATEGORIES, default: [] },
+    dailyGoal: { type: Number, default: 10, min: 1, max: 50 },
     authentication: {
         password: {type: String, required: true, select: false},
         salt: {type: String, select: false},
