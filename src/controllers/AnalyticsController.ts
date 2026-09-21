@@ -1,5 +1,7 @@
 import express from 'express';
+import { get } from 'lodash';
 import { GameSessionModel } from '../models/GameSession';
+import { UserModel } from '../models/User';
 import mongoose from 'mongoose';
 
 const getStartDate = (timeframe: string) => {
@@ -49,6 +51,7 @@ export const getAnalytics = async (req: express.Request, res: express.Response) 
 
 export const getAllAnalytics = async (req: express.Request, res: express.Response) => {
     try {
+        const identity = get(req, 'identity') as any;
         const { timeframe } = req.query;
 
         let startDate = new Date(0);
@@ -70,12 +73,23 @@ export const getAllAnalytics = async (req: express.Request, res: express.Respons
                 break;
         }
 
+        const matchStage: Record<string, any> = {
+            completedAt: { $gte: startDate },
+        };
+
+        // Doctors can only see sessions of their assigned patients
+        if (identity?.role === 'doctor') {
+            const assignedPatients = await UserModel.find({
+                assignedDoctorId: identity._id,
+                role: 'patient'
+            }).select('_id');
+
+            const patientIds = assignedPatients.map((p) => p._id);
+            matchStage.userId = { $in: patientIds };
+        }
+
         const stats = await GameSessionModel.aggregate([
-            {
-                $match: {
-                    completedAt: { $gte: startDate },
-                }
-            },
+            { $match: matchStage },
             { $sort: { "_id": 1 } }
         ]);
 

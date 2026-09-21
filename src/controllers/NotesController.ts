@@ -5,8 +5,11 @@ import { UserModel } from '../models/User';
 import {
     createNote,
     getNotesForDoctor,
+    getAllNotes,
     getUnreadCounts,
-    markNotesAsRead
+    getAllUnreadCounts,
+    markNotesAsRead,
+    markAllNotesAsRead
 } from '../models/PatientNote';
 
 export const sendNote = async (req: express.Request, res: express.Response) => {
@@ -52,13 +55,15 @@ export const getMyNotes = async (req: express.Request, res: express.Response) =>
             return res.status(403).json({ message: 'User not authenticated' });
         }
 
-        const doctorId = new mongoose.Types.ObjectId(identity._id);
         const { patientId } = req.query;
+        const isAdmin = identity.role === 'admin';
 
-        const notes = await getNotesForDoctor(
-            doctorId,
-            patientId as string | undefined
-        );
+        const notes = isAdmin
+            ? await getAllNotes(patientId as string | undefined)
+            : await getNotesForDoctor(
+                new mongoose.Types.ObjectId(identity._id),
+                patientId as string | undefined
+            );
 
         return res.status(200).json(notes);
     } catch (err) {
@@ -74,8 +79,11 @@ export const getUnreadNoteCounts = async (req: express.Request, res: express.Res
             return res.status(403).json({ message: 'User not authenticated' });
         }
 
-        const doctorId = new mongoose.Types.ObjectId(identity._id);
-        const counts = await getUnreadCounts(doctorId);
+        const isAdmin = identity.role === 'admin';
+
+        const counts = isAdmin
+            ? await getAllUnreadCounts()
+            : await getUnreadCounts(new mongoose.Types.ObjectId(identity._id));
 
         return res.status(200).json(counts);
     } catch (err) {
@@ -92,10 +100,15 @@ export const markAsRead = async (req: express.Request, res: express.Response) =>
         }
 
         const { patientId } = req.params;
-        const doctorId = new mongoose.Types.ObjectId(identity._id);
         const pId = new mongoose.Types.ObjectId(patientId);
+        const isAdmin = identity.role === 'admin';
 
-        await markNotesAsRead(doctorId, pId);
+        if (isAdmin) {
+            await markAllNotesAsRead(pId);
+        } else {
+            const doctorId = new mongoose.Types.ObjectId(identity._id);
+            await markNotesAsRead(doctorId, pId);
+        }
 
         return res.status(200).json({ message: 'Notes marked as read' });
     } catch (err) {
