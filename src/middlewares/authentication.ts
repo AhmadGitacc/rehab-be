@@ -74,6 +74,22 @@ export const isAdmin = async (req: express.Request, res: express.Response, next:
     }
 }
 
+export const isCaregiver = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    try {
+        const currentUser = get(req, 'identity.role') as string;
+
+        if (currentUser !== 'caregiver') {
+            return res.status(403).json({ message: 'Caregiver access required' });
+        }
+
+        return next();
+
+    } catch (err) {
+        console.log(err)
+        return res.sendStatus(400)
+    }
+}
+
 export const isSuperAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     try {
         const currentUser = get(req, 'identity.role') as string;

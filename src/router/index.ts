@@ -4,6 +4,7 @@ import UserRoutes from './UserRoutes';
 import SessionRoutes from './GameSessionRoutes';
 import AnalyticsRoutes from './AnalyticsRoutes';
 import NotesRoutes from './NotesRoutes';
+import CaregiverRoutes from './CaregiverRoutes';
 
 const router = express.Router()
 
@@ -13,6 +14,7 @@ export default (): express.Router => {
     SessionRoutes(router);
     AnalyticsRoutes(router);
     NotesRoutes(router);
+    CaregiverRoutes(router);
 
     return router;
 }

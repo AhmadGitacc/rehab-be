@@ -6,6 +6,7 @@ import {
     updateUser,
     getPatientsForAssignment,
     assignDoctor,
+    linkCaregiver,
     assignCategories,
     getMyCategories,
     setDailyGoal,
@@ -22,6 +23,7 @@ export default (router: express.Router) => {
     router.patch('/users/update/:id', isAuthenticated, isSuperAdmin, updateUser)
     router.delete('/users/delete/:id', isAuthenticated, isSuperAdmin, deleteUser)
     router.put('/users/assign-doctor/:id', isAuthenticated, isSuperAdmin, assignDoctor)
+    router.put('/users/link-caregiver/:id', isAuthenticated, isSuperAdmin, linkCaregiver)
     router.put('/users/categories/:id', isAuthenticated, isAdmin, assignCategories)
     router.put('/users/daily-goal/:id', isAuthenticated, isAdmin, setDailyGoal)
 }

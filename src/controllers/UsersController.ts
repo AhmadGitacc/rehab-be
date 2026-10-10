@@ -1,5 +1,6 @@
 import express from 'express';
 import { get } from 'lodash';
+import mongoose from 'mongoose';
 import { authentication, random } from '../helpers';
 import { deleteUserById, getUserById, getUsers, UserModel } from '../models/User';
 
@@ -122,6 +123,46 @@ export const assignDoctor = async (req: express.Request, res: express.Response) 
         user.assignedDoctorId = doctor._id
         await user.save()
         return res.status(200).json(user)
+
+    } catch (err) {
+        console.log(err)
+        return res.sendStatus(400)
+    }
+}
+
+/**
+ * Links a caregiver to a set of patients (whole-array replace).
+ */
+export const linkCaregiver = async (req: express.Request, res: express.Response) => {
+    try {
+        const { id } = req.params
+        const { patientIds } = req.body
+
+        if (!Array.isArray(patientIds)) {
+            return res.status(400).json("patientIds must be an array")
+        }
+
+        const caregiver = await getUserById(id)
+        if (!caregiver) {
+            return res.status(400).json("user doesn't exist")
+        }
+        if (caregiver.role !== 'caregiver') {
+            return res.status(400).json("Only caregivers can be linked to patients")
+        }
+
+        const normalized = [...new Set(patientIds.filter((p) => mongoose.isValidObjectId(p)))];
+
+        if (normalized.length > 0) {
+            const patients = await UserModel.find({ _id: { $in: normalized } }).select('role')
+            const allPatients = patients.length === normalized.length && patients.every((p) => p.role === 'patient')
+            if (!allPatients) {
+                return res.status(400).json("Invalid patient selection")
+            }
+        }
+
+        caregiver.linkedPatientIds = normalized as any
+        await caregiver.save()
+        return res.status(200).json(caregiver)
 
     } catch (err) {
         console.log(err)

@@ -8,10 +8,11 @@ const UserSchema = new mongoose.Schema({
     IsOnline: {type: Boolean},
     role: { 
         type: String, 
-        enum: ['patient', 'admin', 'doctor'], 
+        enum: ['patient', 'admin', 'doctor', 'caregiver'], 
         default: 'patient' 
     },
     assignedDoctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    linkedPatientIds: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [] },
     assignedCategories: { type: [String], enum: CATEGORIES, default: [] },
     dailyGoal: { type: Number, default: 10, min: 1, max: 50 },
     authentication: {
