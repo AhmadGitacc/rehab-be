@@ -82,7 +82,6 @@ export const deleteUser = async (req: express.Request, res: express.Response) =>
 export const getPatientsForAssignment = async (req: express.Request, res: express.Response) => {
     try {
         const patients = await UserModel.find({ role: 'patient' })
-            .select('-authentication')
             .populate('assignedDoctorId', '_id username email')
             .sort({ username: 1 })
 

@@ -41,7 +41,6 @@ export const getCaregiverPatients = async (req: express.Request, res: express.Re
         const linked = getLinkedPatientIds(identity);
 
         const patients = await UserModel.find({ _id: { $in: linked } })
-            .select('-authentication')
             .sort({ username: 1 });
 
         return res.status(200).json(patients);
