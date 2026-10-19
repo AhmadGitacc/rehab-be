@@ -34,7 +34,7 @@ export const getUser = async (req: express.Request, res: express.Response) => {
 export const updateUser = async (req: express.Request, res: express.Response) => {
     try {
         const { id } = req.params
-        const { email, username, role, password } = req.body
+        const { email, username, role, password, phone } = req.body
 
         const user = await getUserById(id)
 
@@ -46,6 +46,7 @@ export const updateUser = async (req: express.Request, res: express.Response) =>
         if (email) user.email = email
         if (username) user.username = username
         if (role) user.role = role
+        if (typeof phone === 'string') user.phone = phone
         if (password) {
             user.authentication.salt = salt;
             user.authentication.password = authentication(salt, password);

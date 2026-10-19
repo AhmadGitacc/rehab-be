@@ -5,6 +5,7 @@ const CATEGORIES = ['memory', 'coordination', 'reaction', 'auditory'] as const;
 const UserSchema = new mongoose.Schema({
     email : {type: String, required: true},
     username: {type: String, required: true},
+    phone: {type: String, default: ''},
     IsOnline: {type: Boolean},
     role: { 
         type: String, 
