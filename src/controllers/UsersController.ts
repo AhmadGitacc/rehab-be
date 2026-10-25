@@ -1,10 +1,32 @@
 import express from 'express';
 import { get } from 'lodash';
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 import { authentication, random } from '../helpers';
 import { deleteUserById, getUserById, getUsers, UserModel } from '../models/User';
 
 const CATEGORIES = ['memory', 'coordination', 'reaction', 'auditory'];
+
+const generateLinkCode = (): string => {
+    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+        const index = crypto.randomInt(0, alphabet.length);
+        code += alphabet[index];
+    }
+    return code;
+};
+
+const generateUniqueLinkCode = async (): Promise<string> => {
+    for (let i = 0; i < 10; i++) {
+        const code = generateLinkCode();
+        const existing = await UserModel.findOne({ careLinkCode: code, role: 'patient' });
+        if (!existing) {
+            return code;
+        }
+    }
+    return generateLinkCode();
+};
 
 export const getAllUsers = async (req: express.Request, res: express.Response) => {
     try {
@@ -267,5 +289,96 @@ export const getMyGoal = async (req: express.Request, res: express.Response) => 
     } catch (err) {
         console.log(err)
         return res.sendStatus(400)
+    }
+}
+
+/**
+ * Get or generate the patient's care link code.
+ */
+export const getMyLinkCode = async (req: express.Request, res: express.Response) => {
+    try {
+        const identity = get(req, 'identity') as any;
+        if (!identity?._id) {
+            return res.status(403).json({ message: 'User not authenticated' });
+        }
+
+        if (identity.role !== 'patient') {
+            return res.status(403).json({ message: 'Only patients can generate link codes' });
+        }
+
+        const user = await UserModel.findById(identity._id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (!user.careLinkCode) {
+            user.careLinkCode = await generateUniqueLinkCode();
+            await user.save();
+        }
+
+        return res.status(200).json({ careLinkCode: user.careLinkCode });
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(400);
+    }
+}
+
+/**
+ * Regenerate the patient's care link code.
+ */
+export const regenerateLinkCode = async (req: express.Request, res: express.Response) => {
+    try {
+        const identity = get(req, 'identity') as any;
+        if (!identity?._id) {
+            return res.status(403).json({ message: 'User not authenticated' });
+        }
+
+        if (identity.role !== 'patient') {
+            return res.status(403).json({ message: 'Only patients can generate link codes' });
+        }
+
+        const user = await UserModel.findById(identity._id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        user.careLinkCode = await generateUniqueLinkCode();
+        await user.save();
+
+        return res.status(200).json({ careLinkCode: user.careLinkCode });
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(400);
+    }
+}
+
+/**
+ * Verify or unverify a doctor account (admin only).
+ */
+export const verifyDoctor = async (req: express.Request, res: express.Response) => {
+    try {
+        const { id } = req.params;
+        const { verified } = req.body;
+
+        const user = await getUserById(id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (user.role !== 'doctor') {
+            return res.status(400).json({ message: 'Only doctors can be verified' });
+        }
+
+        if (typeof verified !== 'boolean') {
+            return res.status(400).json({ message: 'verified must be a boolean' });
+        }
+
+        user.verified = verified;
+        await user.save();
+
+        return res.status(200).json(user);
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(400);
     }
 }

@@ -12,6 +12,8 @@ const UserSchema = new mongoose.Schema({
         enum: ['patient', 'admin', 'doctor', 'caregiver'], 
         default: 'patient' 
     },
+    verified: { type: Boolean, default: true },
+    careLinkCode: { type: String, default: null, index: true },
     assignedDoctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     linkedPatientIds: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [] },
     assignedCategories: { type: [String], enum: CATEGORIES, default: [] },

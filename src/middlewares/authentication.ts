@@ -60,10 +60,15 @@ export const isOwner = async (req: express.Request, res: express.Response, next:
 
 export const isAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     try {
-        const currentUser = get(req, 'identity.role') as string;
+        const currentUser = get(req, 'identity') as any;
+        const currentUserRole = currentUser?.role as string;
 
-        if (currentUser !== 'admin' && currentUser !== 'doctor') {
+        if (currentUserRole !== 'admin' && currentUserRole !== 'doctor') {
             return res.status(403).json({ message: 'Admin access required' });
+        }
+
+        if (currentUserRole === 'doctor' && currentUser?.verified === false) {
+            return res.status(403).json({ message: 'Your account is pending admin approval.' });
         }
 
         return next();

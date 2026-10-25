@@ -215,3 +215,53 @@ export const getPatientCarePlan = async (req: express.Request, res: express.Resp
         return res.sendStatus(400);
     }
 };
+
+/**
+ * Link a caregiver to a patient using the patient's share code.
+ */
+export const linkCaregiverWithCode = async (req: express.Request, res: express.Response) => {
+    try {
+        const identity = get(req, 'identity') as any;
+        const { code } = req.body;
+
+        if (!code || typeof code !== 'string') {
+            return res.status(400).json({ message: 'Share code is required' });
+        }
+
+        if (!identity?._id) {
+            return res.status(403).json({ message: 'User not authenticated' });
+        }
+
+        if (identity.role !== 'caregiver') {
+            return res.status(403).json({ message: 'Only caregivers can link with a code' });
+        }
+
+        const caregiver = await UserModel.findById(identity._id);
+        if (!caregiver) {
+            return res.status(404).json({ message: 'Caregiver not found' });
+        }
+
+        const normalizedCode = code.trim().toUpperCase();
+        const patient = await UserModel.findOne({ role: 'patient', careLinkCode: normalizedCode });
+
+        if (!patient) {
+            return res.status(404).json({ message: 'Invalid share code' });
+        }
+
+        const alreadyLinked = (caregiver.linkedPatientIds || []).some(
+            (id: any) => id.toString() === patient._id.toString()
+        );
+
+        if (alreadyLinked) {
+            return res.status(400).json({ message: 'Patient already linked' });
+        }
+
+        caregiver.linkedPatientIds = [...(caregiver.linkedPatientIds || []), patient._id];
+        await caregiver.save();
+
+        return res.status(200).json(patient);
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(400);
+    }
+};

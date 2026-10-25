@@ -4,7 +4,7 @@ import { authentication, random } from '../helpers';
 
 export const Register = async (req: express.Request, res: express.Response) => {
     try {
-        const { email, username, password } = req.body;
+        const { email, username, password, role, phone } = req.body;
 
         if (!email || !username || !password) {
             return res.status(400).json({ message: 'Missing required fields' });
@@ -15,12 +15,21 @@ export const Register = async (req: express.Request, res: express.Response) => {
             return res.status(409).json({ message: 'Email already in use' });
         }
 
+        const allowedRoles = ['patient', 'doctor', 'caregiver'];
+        const requestedRole = allowedRoles.includes(role) ? role : 'patient';
+
+        if (requestedRole === 'doctor' && !phone) {
+            return res.status(400).json({ message: 'Phone number is required for doctor accounts' });
+        }
+
         const salt = random()
 
         const newUser = await createUser({
             email,
             username,
-            role: 'patient',
+            role: requestedRole,
+            phone: phone || '',
+            verified: requestedRole === 'doctor' ? false : true,
             authentication: {
                 salt,
                 password: authentication(salt, password)
@@ -52,6 +61,10 @@ export const Login = async (req: express.Request, res: express.Response) => {
 
         if (user.authentication.password != expectedHash) {
             return res.status(403).json({ message: 'Invalid password' });
+        }
+
+        if (user.role === 'doctor' && user.verified === false) {
+            return res.status(403).json({ message: 'Your account is pending admin approval.' });
         }
 
         await updateUserById(user._id.toString(), { IsOnline: true });
