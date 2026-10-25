@@ -20,6 +20,10 @@ export const isAuthenticated = async (req: express.Request, res: express.Respons
             return res.status(403).json("User not found");
         }
 
+        if (existingUser.status === 'disabled') {
+            return res.status(403).json({ message: 'Account disabled' });
+        }
+
         merge(req, { identity: existingUser })
 
         return next()

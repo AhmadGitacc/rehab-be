@@ -13,6 +13,8 @@ const UserSchema = new mongoose.Schema({
         default: 'patient' 
     },
     verified: { type: Boolean, default: true },
+    /** Account access state. Missing on legacy documents → treated as active. */
+    status: { type: String, enum: ['active', 'disabled'], default: 'active' },
     careLinkCode: { type: String, default: null, index: true },
     assignedDoctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     linkedPatientIds: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [] },

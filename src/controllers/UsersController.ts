@@ -98,6 +98,37 @@ export const deleteUser = async (req: express.Request, res: express.Response) =>
 }
 
 /**
+ * Enables or disables an account without deleting it. Disabled accounts are
+ * rejected at login and by the auth middleware, so existing sessions lose access.
+ */
+export const setUserStatus = async (req: express.Request, res: express.Response) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (status !== 'active' && status !== 'disabled') {
+            return res.status(400).json({ message: "status must be 'active' or 'disabled'" });
+        }
+
+        const currentUserId = get(req, 'identity._id') as string | undefined;
+        if (status === 'disabled' && currentUserId && currentUserId.toString() === id) {
+            return res.status(400).json({ message: 'You cannot disable your own account' });
+        }
+
+        const user = await UserModel.findByIdAndUpdate(id, { status }, { new: true });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        return res.status(200).json(user);
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(400);
+    }
+}
+
+/**
  * Returns all patients, optionally enriched with their assigned doctor and
  * enabled cognitive training categories. Used by the admin assignment page
  * and the doctor care-plan page.

@@ -67,6 +67,10 @@ export const Login = async (req: express.Request, res: express.Response) => {
             return res.status(403).json({ message: 'Your account is pending admin approval.' });
         }
 
+        if (user.status === 'disabled') {
+            return res.status(403).json({ message: 'Your account has been disabled. Contact your administrator.' });
+        }
+
         await updateUserById(user._id.toString(), { IsOnline: true });
 
         const salt = random()
