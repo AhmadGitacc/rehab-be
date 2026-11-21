@@ -14,7 +14,7 @@ import {
 import { PasswordResetTokenModel } from '../models/PasswordResetToken';
 import { createUser, getUserByEmail, getUserById, updateUserById, UserModel } from '../models/User';
 import { EmailDeliveryError, sendOtpEmail, sendPasswordChangedEmail, sendResetEmail } from '../services/email';
-import { issueOtp, OtpError, resendOtp, verifyOtp } from '../services/otp';
+import { issueOtp, OtpError, resendOrIssueOtp, resendOtp, verifyOtp } from '../services/otp';
 import {
     clearRefreshCookie,
     createSession,
@@ -190,7 +190,7 @@ export const ResendVerification = async (req: express.Request, res: express.Resp
         const user = await getUserByEmail(email);
         if (user && !user.emailVerified) {
             try {
-                const {code} = await resendOtp(user._id, 'signup_verify');
+                const {code} = await resendOrIssueOtp(user._id, 'signup_verify');
                 await sendOtpEmail(email, code, 'signup_verify');
             } catch (err) {
                 // Do not reveal cooldown/lockout/delivery state to unauthenticated callers.
@@ -247,7 +247,10 @@ export const Login = async (req: express.Request, res: express.Response) => {
             return res.status(403).json({message: 'Your account has been disabled. Contact your administrator.'});
         }
         if (!user.emailVerified) {
-            return res.status(403).json({message: 'Please verify your email before signing in.'});
+            return res.status(403).json({
+                message: 'Please verify your email before signing in.',
+                code: 'EMAIL_NOT_VERIFIED',
+            });
         }
         if (user.role === 'doctor' && user.verified === false) {
             return res.status(403).json({message: 'Your account is pending admin approval.'});

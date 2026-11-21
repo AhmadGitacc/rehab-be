@@ -49,6 +49,39 @@ const retryAfterSeconds = (until?: Date | null): number | undefined => {
 };
 
 /**
+ * For the email-only verification fallback: when the original code has expired
+ * (or was never active), issue a fresh one while still applying the same
+ * cooldown and hourly cap across every code issued for this purpose.
+ */
+export const resendOrIssueOtp = async (
+    userId: string | any,
+    purpose: OtpPurpose,
+): Promise<IssuedOtp> => {
+    const now = new Date();
+
+    const [latest, recent] = await Promise.all([
+        EmailOtpModel.findOne({userId, purpose}).sort({createdAt: -1}),
+        EmailOtpModel.find({
+            userId,
+            purpose,
+            createdAt: {$gt: new Date(now.getTime() - AUTH.otp.resendWindowMs)},
+        })
+            .sort({createdAt: -1})
+            .limit(AUTH.otp.maxResendsPerHour),
+    ]);
+
+    const lockedFor = retryAfterSeconds(latest?.cooldownUntil);
+    if (lockedFor) {
+        throw new OtpError('Please wait before requesting another code.', 429, lockedFor);
+    }
+    if (recent.length >= AUTH.otp.maxResendsPerHour) {
+        throw new OtpError('Too many codes requested. Try again later.', 429);
+    }
+
+    return issueOtp(userId, purpose);
+};
+
+/**
  * Atomic verify: increments attempts only while below the limit, compares in
  * constant time, then consumes with a compare-and-set so it is single-use.
  */
