@@ -1,19 +1,59 @@
-import { Resend } from 'resend';
-import type { OtpPurpose } from '../config/auth';
-import { frontendUrl } from '../config/auth';
+import crypto from 'crypto';
+import nodemailer, {type Transporter} from 'nodemailer';
+import type {OtpPurpose} from '../config/auth';
+import {frontendUrl} from '../config/auth';
 
-let client: Resend | undefined;
+/** Raised when SMTP is unavailable; callers decide whether to hide the failure. */
+export class EmailDeliveryError extends Error {
+    constructor() {
+        super('Email delivery is temporarily unavailable');
+        this.name = 'EmailDeliveryError';
+    }
+}
 
-const getClient = (): Resend | undefined => {
-    if (!process.env.RESEND_API_KEY) {
-        console.warn('[email] RESEND_API_KEY is not set — email delivery is disabled.');
+let transporter: Transporter | undefined;
+
+const smtpPort = () => Number(process.env.SMTP_PORT || 465);
+
+const getTransporter = (): Transporter | undefined => {
+    if (!process.env.SMTP_USER || !process.env.SMTP_APP_PASSWORD) {
+        console.warn('[email] SMTP_USER / SMTP_APP_PASSWORD not set — email delivery is disabled.');
         return undefined;
     }
-    client ??= new Resend(process.env.RESEND_API_KEY);
-    return client;
+
+    if (!transporter) {
+        const port = smtpPort();
+        transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST || 'smtp.gmail.com',
+            port,
+            // 465 is implicit TLS; 587 uses STARTTLS.
+            secure: port === 465,
+            auth: {
+                user: process.env.SMTP_USER,
+                // Gmail App Passwords are displayed with spaces.
+                pass: process.env.SMTP_APP_PASSWORD.replace(/\s/g, ''),
+            },
+            connectionTimeout: 10_000,
+            greetingTimeout: 10_000,
+            socketTimeout: 15_000,
+            pool: false,
+            maxConnections: 1,
+        });
+    }
+
+    return transporter;
 };
 
-const from = () => process.env.EMAIL_FROM || 'Cogni <no-reply@example.com>';
+/** Gmail requires the From address to match the account or a verified alias. */
+const from = () => process.env.EMAIL_FROM || process.env.SMTP_USER || 'no-reply@localhost';
+
+/** Avoid echoing credentials back into logs if a provider error embeds them. */
+const safeError = (err: unknown): string => {
+    let message = err instanceof Error ? err.message : String(err);
+    const secret = process.env.SMTP_APP_PASSWORD?.replace(/\s/g, '');
+    if (secret) message = message.split(secret).join('[redacted]');
+    return message.slice(0, 500);
+};
 
 /** Branded, dependency-free markup (no third-party tracking resources). */
 const layout = (title: string, body: string) => `
@@ -40,29 +80,28 @@ type SendArgs = {
 };
 
 const send = async ({to, subject, html, text, tag}: SendArgs): Promise<void> => {
-    const resend = getClient();
-    if (!resend) return;
+    const mailer = getTransporter();
+    if (!mailer) throw new EmailDeliveryError();
 
     try {
-        const {data, error} = await resend.emails.send({
+        const info = await mailer.sendMail({
             from: from(),
-            to: [to],
+            to,
             subject,
             html,
             text,
-            tags: [{name: 'purpose', value: tag}],
-        }, {
-            // Resend sends this as the Idempotency-Key header.
-            idempotencyKey: `${tag}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            headers: {
+                // SMTP has no Resend-style tags; keep a filterable purpose header.
+                'X-Rehabme-Purpose': tag,
+                // Acts like a per-message idempotency reference for support/debugging.
+                'X-Entity-Ref-ID': crypto.randomUUID(),
+            },
         });
-        if (error) {
-            // Never log OTP/reset values — only the provider error.
-            console.error('[email] Resend error:', error.message);
-            return;
-        }
-        console.log('[email] sent message', data?.id);
+        // Log only the provider message id — never OTP/reset values or credentials.
+        console.log('[email] sent message', info.messageId);
     } catch (err) {
-        console.error('[email] send failed:', err instanceof Error ? err.message : err);
+        console.error('[email] send failed:', safeError(err));
+        throw new EmailDeliveryError();
     }
 };
 
@@ -83,8 +122,8 @@ export const sendOtpEmail = async (email: string, code: string, purpose: OtpPurp
         to: email,
         // Keep the code out of the subject line (notification previews/lockscreens).
         subject: title,
-        html,
         text: `${title}. Your one-time code is ${code}. It expires in ${minutes} minutes. If you did not request this, ignore this email.`,
+        html,
         tag: purpose,
     });
 };

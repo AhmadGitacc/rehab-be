@@ -102,7 +102,13 @@ export const jwtAudience = (): string => process.env.JWT_AUDIENCE || 'rehab-me-w
 export const frontendUrl = (): string =>
     (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
 
-const REQUIRED_IN_PRODUCTION = ['RESEND_API_KEY', 'EMAIL_FROM', 'FRONTEND_URL', 'JWT_SECRET'] as const;
+const REQUIRED_IN_PRODUCTION = [
+    'SMTP_USER',
+    'SMTP_APP_PASSWORD',
+    'EMAIL_FROM',
+    'FRONTEND_URL',
+    'JWT_SECRET',
+] as const;
 
 /** Fail fast in production; warn in development so local UI work can continue. */
 export const validateAuthEnv = (): void => {

@@ -13,7 +13,7 @@ import {
 } from '../helpers/tokens';
 import { PasswordResetTokenModel } from '../models/PasswordResetToken';
 import { createUser, getUserByEmail, getUserById, updateUserById, UserModel } from '../models/User';
-import { sendOtpEmail, sendPasswordChangedEmail, sendResetEmail } from '../services/email';
+import { EmailDeliveryError, sendOtpEmail, sendPasswordChangedEmail, sendResetEmail } from '../services/email';
 import { issueOtp, OtpError, resendOtp, verifyOtp } from '../services/otp';
 import {
     clearRefreshCookie,
@@ -59,6 +59,9 @@ const authError = (
         const seconds = retryAfter((err as any).retryAfter);
         if (seconds) res.setHeader('Retry-After', String(seconds));
         return res.status(err.status).json({message: err.message});
+    }
+    if (err instanceof EmailDeliveryError) {
+        return res.status(503).json({message: err.message});
     }
     if (err instanceof Error && err.name === 'TokenExpiredError') {
         return res.status(401).json({message: 'Your verification link has expired. Please start again.'});
@@ -190,8 +193,10 @@ export const ResendVerification = async (req: express.Request, res: express.Resp
                 const {code} = await resendOtp(user._id, 'signup_verify');
                 await sendOtpEmail(email, code, 'signup_verify');
             } catch (err) {
-                // Do not reveal cooldown/lockout state to unauthenticated callers.
-                if (!(err instanceof OtpError)) console.error('[auth] resend verification failed:', err);
+                // Do not reveal cooldown/lockout/delivery state to unauthenticated callers.
+                if (!(err instanceof OtpError) && !(err instanceof EmailDeliveryError)) {
+                    console.error('[auth] resend verification failed:', err);
+                }
             }
         }
 
@@ -422,7 +427,12 @@ export const ForgotPassword = async (req: express.Request, res: express.Response
         });
 
         const url = `${frontendUrl()}/reset-password?token=${encodeURIComponent(token)}`;
-        await sendResetEmail(user.email, url);
+        try {
+            await sendResetEmail(user.email, url);
+        } catch (err) {
+            // Keep the response identical whether or not the address exists.
+            if (!(err instanceof EmailDeliveryError)) throw err;
+        }
 
         return res.status(200).json({message: GENERIC_FORGOT_MESSAGE});
     } catch (err) {
@@ -493,7 +503,12 @@ export const ResetPassword = async (req: express.Request, res: express.Response)
             {$set: {usedAt: new Date()}},
         );
         await revokeAllSessions(user._id.toString());
-        await sendPasswordChangedEmail(user.email);
+        try {
+            await sendPasswordChangedEmail(user.email);
+        } catch (err) {
+            // The password was already changed — do not roll it back over mail delivery.
+            if (!(err instanceof EmailDeliveryError)) throw err;
+        }
 
         return res.status(200).json({message: 'Password reset. Please sign in.'});
     } catch (err) {
