@@ -11,8 +11,24 @@ validateAuthEnv();
 
 const app = express()
 
+/**
+ * CORS origins come from the environment so the deployed frontend domain does
+ * not require a code change. FRONTEND_URL is also used to build reset links.
+ */
+const allowedOrigins = [
+    "http://localhost:5173",
+    ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL.replace(/\/$/, '')] : []),
+    ...(process.env.CORS_ORIGINS
+        ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean)
+        : []),
+];
+
 app.use(cors({
-    origin: ["http://localhost:5173", "https://frontend.vercel.app"],
+    origin: (origin, callback) => {
+        // Same-origin/health checks send no Origin header; allow those through.
+        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
