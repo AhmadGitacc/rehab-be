@@ -25,7 +25,7 @@ export default (router: express.Router) => {
     router.get('/users/me/goal', isAuthenticated, getMyGoal)
     router.get('/users/me/link-code', isAuthenticated, getMyLinkCode)
     router.post('/users/me/link-code/regenerate', isAuthenticated, regenerateLinkCode)
-    router.get('/users/:id', isAdmin, isOwner, getUser)
+    router.get('/users/:id', isAuthenticated, isAdmin, isOwner, getUser)
     router.patch('/users/update/:id', isAuthenticated, isSuperAdmin, updateUser)
     router.patch('/users/verify/:id', isAuthenticated, isSuperAdmin, verifyDoctor)
     router.patch('/users/status/:id', isAuthenticated, isSuperAdmin, setUserStatus)

@@ -1,9 +1,13 @@
+import 'dotenv/config';
 import compression from 'compression'
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import express from 'express'
 import mongoose from 'mongoose'
 import router from './router'
+import { validateAuthEnv } from './config/auth'
+
+validateAuthEnv();
 
 const app = express()
 

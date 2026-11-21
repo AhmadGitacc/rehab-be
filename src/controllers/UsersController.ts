@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import crypto from 'crypto';
 import { authentication, random } from '../helpers';
 import { deleteUserById, getUserById, getUsers, UserModel } from '../models/User';
+import { revokeAllSessions } from '../services/session';
 
 const CATEGORIES = ['memory', 'coordination', 'reaction', 'auditory'];
 
@@ -64,8 +65,13 @@ export const updateUser = async (req: express.Request, res: express.Response) =>
             return res.status(400).json("user doesn't exist")
         }
         const salt = random()
+        const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
 
-        if (email) user.email = email
+        // Credential/role changes must invalidate every previously issued token.
+        const securityChange = Boolean(password || (role && role !== user.role) ||
+            (normalizedEmail && normalizedEmail !== user.email));
+
+        if (normalizedEmail) user.email = normalizedEmail
         if (username) user.username = username
         if (role) user.role = role
         if (typeof phone === 'string') user.phone = phone
@@ -73,8 +79,12 @@ export const updateUser = async (req: express.Request, res: express.Response) =>
             user.authentication.salt = salt;
             user.authentication.password = authentication(salt, password);
         }
+        if (securityChange) {
+            user.authVersion = (user.authVersion ?? 0) + 1;
+        }
 
         await user.save()
+        if (securityChange) await revokeAllSessions(user._id.toString());
         return res.status(200).json(user)
 
     } catch (err) {
@@ -88,6 +98,7 @@ export const deleteUser = async (req: express.Request, res: express.Response) =>
         const { id } = req.params
 
         const user = await deleteUserById(id)
+        await revokeAllSessions(id)
 
         return res.json(user)
 
@@ -115,13 +126,15 @@ export const setUserStatus = async (req: express.Request, res: express.Response)
             return res.status(400).json({ message: 'You cannot disable your own account' });
         }
 
-        const user = await UserModel.findByIdAndUpdate(id, { status }, { new: true });
+        const existing = await getUserById(id);
+        if (!existing) return res.status(404).json({ message: 'User not found' });
 
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
+        existing.status = status;
+        if (status === 'disabled') existing.authVersion = (existing.authVersion ?? 0) + 1;
+        await existing.save();
+        if (status === 'disabled') await revokeAllSessions(id);
 
-        return res.status(200).json(user);
+        return res.status(200).json(existing);
     } catch (err) {
         console.log(err);
         return res.sendStatus(400);
@@ -404,8 +417,11 @@ export const verifyDoctor = async (req: express.Request, res: express.Response) 
             return res.status(400).json({ message: 'verified must be a boolean' });
         }
 
+        const wasApproved = user.verified;
         user.verified = verified;
+        if (wasApproved && !verified) user.authVersion = (user.authVersion ?? 0) + 1;
         await user.save();
+        if (wasApproved && !verified) await revokeAllSessions(id);
 
         return res.status(200).json(user);
     } catch (err) {
