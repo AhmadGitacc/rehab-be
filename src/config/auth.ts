@@ -46,6 +46,9 @@ export const AUTH = {
             doctor: 12 * 60 * 60 * 1000,
             admin: 12 * 60 * 60 * 1000,
         } as const,
+        /** A token rotated this recently may be retried by a stale/parallel
+         *  request without revoking the whole family (multi-tab safe). */
+        reuseGraceMs: 30 * 1000,
     },
     passwordReset: {
         ttlMs: 15 * 60 * 1000,
@@ -66,10 +69,23 @@ export type OtpPurpose = keyof typeof AUTH.otp.ttlMs;
  * Host-only by default: no hard-coded `domain: "localhost"`.
  */
 export const getCookieOptions = (maxAgeMs: number): CookieOptions => {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const configured = process.env.COOKIE_SAMESITE?.toLowerCase();
+    const sameSite: CookieOptions['sameSite'] =
+        configured === 'none' || configured === 'lax' || configured === 'strict'
+            ? configured
+            : isProduction
+                // The deployed frontend and API live on different sites. Lax
+                // cookies are withheld from cross-site XHR, so /auth/refresh
+                // used to receive no cookie and force a logout.
+                ? 'none'
+                : 'lax';
+
     const options: CookieOptions = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        // SameSite=None must always be Secure; production runs over HTTPS.
+        secure: isProduction || sameSite === 'none',
+        sameSite,
         path: REFRESH_PATH,
         maxAge: maxAgeMs,
     };

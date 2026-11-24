@@ -48,9 +48,26 @@ export const createSession = async (user: SessionUser, res: Response): Promise<v
 
 const readToken = (req: Request): string | undefined => req.cookies?.[COOKIE_NAME];
 
+/** Shared eligibility checks for a user referenced by a refresh session. */
+const loadSessionUser = async (userId: any, expectedAuthVersion?: number) => {
+    const user = await UserModel.findById(userId);
+    if (!user) throw new SessionError('User not found');
+    if (user.status === 'disabled') throw new SessionError('Account disabled', 403);
+    if (user.emailVerified === false) throw new SessionError('Email not verified', 403);
+    if (isStaffRole(user.role) && user.verified === false) {
+        throw new SessionError('Your account is pending admin approval.', 403);
+    }
+    if (expectedAuthVersion !== undefined && (user.authVersion ?? 0) !== expectedAuthVersion) {
+        throw new SessionError('Session revoked. Please sign in again.');
+    }
+    return user;
+};
+
 /**
  * Validates, rotates and re-issues the refresh token. If an already-rotated
- * token is presented again, the whole family is revoked (reuse detection).
+ * token is presented again, the whole family is revoked (reuse detection),
+ * except for a short grace window where it is treated as a harmless parallel
+ * refresh (two tabs / a retry) instead of logging the user out.
  */
 export const rotateSession = async (req: Request, res: Response) => {
     const token = readToken(req);
@@ -66,6 +83,23 @@ export const rotateSession = async (req: Request, res: Response) => {
 
     if (session.revokedAt) {
         if (session.replacedBy) {
+            const rotatedAt = session.revokedAt.getTime();
+            const withinGrace = Date.now() - rotatedAt <= AUTH.refresh.reuseGraceMs;
+
+            if (withinGrace) {
+                // The winning request already rotated this family and updated the
+                // shared browser cookie. A stale request (second tab, fast retry)
+                // still carried the old token, so return a valid access token
+                // without revoking the family or overwriting the newer cookie.
+                const active = await RefreshSessionModel.findOne({
+                    familyId: session.familyId,
+                    revokedAt: null,
+                    expiresAt: {$gt: now},
+                }).sort({createdAt: -1});
+
+                if (active) return await loadSessionUser(active.userId, active.authVersion ?? 0);
+            }
+
             await RefreshSessionModel.updateMany(
                 {familyId: session.familyId, revokedAt: null},
                 {$set: {revokedAt: now}},
@@ -79,16 +113,14 @@ export const rotateSession = async (req: Request, res: Response) => {
         throw new SessionError('Refresh token is invalid or expired');
     }
 
-    const user = await UserModel.findById(session.userId);
-    if (!user) throw new SessionError('User not found');
-    if (user.status === 'disabled') throw new SessionError('Account disabled', 403);
-    if (user.emailVerified === false) throw new SessionError('Email not verified', 403);
-    if (isStaffRole(user.role) && user.verified === false) {
-        throw new SessionError('Your account is pending admin approval.', 403);
-    }
-    if ((user.authVersion ?? 0) !== (session.authVersion ?? 0)) {
-        await revokeAllSessions(user._id.toString());
-        throw new SessionError('Session revoked. Please sign in again.');
+    let user;
+    try {
+        user = await loadSessionUser(session.userId, session.authVersion ?? 0);
+    } catch (err) {
+        if (err instanceof SessionError && err.message.startsWith('Session revoked')) {
+            await revokeAllSessions(session.userId.toString());
+        }
+        throw err;
     }
 
     const nextToken = generateRefreshToken();
